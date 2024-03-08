@@ -7,7 +7,7 @@ from Cryptodome.Cipher import AES
 from Cryptodome.Hash import MD4, SHA1
 from Cryptodome.Protocol.KDF import PBKDF2
 
-from ldap3 import Server, Connection, SASL, KERBEROS, NTLM, SUBTREE, ALL as LDAP3_ALL, BASE, DEREF_NEVER
+from ldap3 import Server, Connection, SASL, KERBEROS, NTLM, SUBTREE, ALL as LDAP3_ALL, BASE, DEREF_NEVER, TLS_CHANNEL_BINDING, ENCRYPT
 from ldap3 import SIMPLE
 from ldap3.protocol.formatters.formatters import format_sid
 from ldap3.core.exceptions import LDAPOperationResult, LDAPSocketOpenError, LDAPAttributeError, LDAPSocketSendError
@@ -274,7 +274,10 @@ class LdapActiveDirectoryView(ActiveDirectoryView):
             server = Server(self.server, get_info=LDAP3_ALL)
 
         if method == "Kerberos":
-            self.ldap = Connection(server, authentication=SASL, sasl_mechanism=KERBEROS)
+            if self.server.startswith("ldaps"):
+                self.ldap = Connection(server, authentication=SASL, sasl_mechanism=KERBEROS)
+            else:
+                self.ldap = Connection(server, authentication=SASL, sasl_mechanism=KERBEROS,session_security=ENCRYPT)
         elif method == "Certificate":
             self.ldap = Connection(server)
         elif method == "anonymous":
@@ -291,24 +294,43 @@ class LdapActiveDirectoryView(ActiveDirectoryView):
                     print(e)
                     print("Incorrect hash, format is LMHASH:NTHASH")
                     exit(1)
-            self.ldap = Connection(
-                server,
-                user=f"{domain}\\{username}",
-                password=ntlm,
-                authentication=NTLM, check_names=True
-            )
+            if self.server.startswith("ldaps"):
+                self.ldap = Connection(
+                    server,
+                    user=f"{domain}\\{username}",
+                    password=ntlm,channel_binding=TLS_CHANNEL_BINDING,
+                    authentication=NTLM, check_names=True
+                )
+            else :
+                self.ldap = Connection(
+                    server,
+                    user=f"{domain}\\{username}",
+                    password=ntlm,
+                    session_security=ENCRYPT,
+                    authentication=NTLM, check_names=True
+                )
         elif method == "SIMPLE":
             if not password:
                 print("Password is required (-p)")
                 exit(1)
             if "." in domain:
                 domain, _, _ = domain.partition(".")
-            self.ldap = Connection(
-                server,
-                user=f"{domain}\\{username}",
-                password=password,
-                authentication=SIMPLE, check_names=True
-            )
+            if self.server.startswith("ldaps"):
+                self.ldap = Connection(
+                    server,
+                    user=f"{domain}\\{username}",
+                    password=ntlm,channel_binding=TLS_CHANNEL_BINDING,
+                    session_security=ENCRYPT,
+                    authentication=NTLM, check_names=True
+                )
+            else :
+                self.ldap = Connection(
+                    server,
+                    user=f"{domain}\\{username}",
+                    password=ntlm,
+                    session_security=ENCRYPT,
+                    authentication=NTLM, check_names=True
+                )
 
         try:
             if method == "Certificate":
@@ -342,7 +364,8 @@ class LdapActiveDirectoryView(ActiveDirectoryView):
 
                     if len(self.ldap.entries) == 0:
                         raise self.ActiveDirectoryLdapException("Unable to retrieve information with anonymous bind")
-        except LDAPSocketOpenError:
+        except LDAPSocketOpenError as e:
+            print(e)
             raise self.ActiveDirectoryLdapException(f"Unable to open connection with {self.server}")
         except LDAPSocketSendError:
             raise self.ActiveDirectoryLdapException(f"Unable to open connection with {self.server}, maybe LDAPS is not enabled ?")
