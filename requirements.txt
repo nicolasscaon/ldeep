@@ -1,6 +1,6 @@
 dnspython>=1.15.0
 cryptography==39.0.1
-ldap3 @ git+https://github.com/nicolasscaon/ldap3.git#egg=ldap3
+ldap3 @ git+https://github.com/cannatag/ldap3/tree/dev@dev#egg=ldap3
 tqdm>=4.26.0
 termcolor
 commandparse>=1.1.1
