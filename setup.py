@@ -33,6 +33,9 @@ setup(
 		"Topic :: Security",
 		"Operating System :: OS Independent",
 	],
+    dependency_links=[
+        'git+https://github.com/cannatag/ldap3.git',
+    ]
 
 	# Packages and dependencies
 	#package_dir={"": "ldeep"},
